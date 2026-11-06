@@ -1,29 +1,37 @@
 # rothian-gbp
 
-Weekly posts for Rothian's Google Business Profile, written by a Claude routine,
-approved by a person, and published by a second routine.
+Shares each new insight from rothian.com/insights on Rothian's Google Business
+Profile, with an illustration generated for it, after a person approves it.
 
 ```
-Writer routine (weekly)        You                    Publisher routine (daily)
-drafts posts/<date>-<slug>.md  review the draft PR    posts merged, due posts
-opens a draft PR, tells Teams  edit, then merge       to the profile, tells Teams
+Daily routine                         You                       Daily routine (next run)
+finds the next new insight            look at the post and      posts it to the profile
+copies its title and description      its image in the PR,      with the image, and
+generates an image (OpenAI)           then merge                tells Teams
+opens a draft PR, tells Teams
 ```
 
 A Business Profile post is public the moment it is made, so merging the pull
-request is the approval: the publisher only reads `main`. To change a post,
-edit its file in the pull request before merging. Do not edit a published post
-on Google: it would no longer match its file, and the publisher would post the
-file again.
+request is the approval: the routine only posts what is on `main`. Google takes
+a post's image only as a public URL, and the images are served from `main`, so
+**this repository must be public** (see ROUTINES.md).
+
+Do not edit a published post on Google: change the post file in its pull
+request before merging.
+
+To skip an insight, close its pull request without merging and leave its
+`post/<slug>` branch in place: the routine treats an existing branch as
+handled. Deleting the branch puts the insight back in the queue.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `posts/` | One markdown file per post (format in `gbp_post.py`) |
-| `gbp_post.py` | `check` a draft, `list` live posts, `publish` approved posts, `notify-pr` Teams |
+| `posts/` | One markdown file per post, images in `posts/images/` |
+| `gbp_post.py` | `prepare`, `image`, `check`, `notify-pr`, `publish`, `list` |
 | `gbp_auth.py` | One-time Google sign-in that produces the refresh token and IDs |
-| `.claude/skills/gbp-post-writing/SKILL.md` | The writing brief: mix, facts, shape, voice, Google's rules |
-| `ROUTINES.md` | Environment, setup script, and both routine prompts |
+| `.claude/skills/gbp-insight-image/SKILL.md` | How the image prompt is written and checked |
+| `ROUTINES.md` | Environment, setup script and the routine prompt |
 
 ## One-time Google setup
 
@@ -40,13 +48,16 @@ file again.
 
    It prints the refresh token and the account and location IDs.
 
-Then set up the environment and the two routines from `ROUTINES.md`.
+Then set up the environment and the routine from `ROUTINES.md`.
 
-## Checking a post by hand
+## What `check` enforces
 
-    python3 gbp_post.py check posts/2026-11-10-example.md
+- 80 to 1,500 characters of text.
+- No phone numbers, email addresses, social handles, links or hashtags in the
+  text: Google may remove posts with unverified contact details, and the
+  button carries the link.
+- The button links to a live rothian.com page.
+- The image exists and is a JPG or PNG of at least 10 KB.
 
-It refuses phone numbers, email addresses, social handles, links and hashtags
-in the text (Google may remove posts with unverified contact details), a text
-outside 300 to 1,500 characters, and a button link that is not a live
-rothian.com page. It warns about em dashes and exclamation marks.
+`publish` also refuses to post if Google could not fetch the image from its
+public URL.
