@@ -5,9 +5,22 @@ description: Write the image_prompt for a Rothian insight's Business Profile pos
 
 # The image for an insight post
 
-The post itself is the insight's own title and description, copied from
-rothian.com by `gbp_post.py prepare`. Do not rewrite it. The one thing written
-for the profile is the picture, and it is what makes someone stop on the post.
+`gbp_post.py prepare` writes the post as the insight's own title and
+description. That is too short for the profile, so after reading the insight
+(below) extend the post text into a short summary, then write the picture.
+
+## Extend the text
+
+Keep the title line and the description paragraph exactly as they are, and add
+after them, from the insight's own content only (no invented claims or figures):
+
+- one short paragraph on what it means or why it matters;
+- three to five short bullets ("• ...") of the key points or actions;
+- an optional closing line pointing to the button.
+
+Aim for 600 to 1,000 characters in total (hard limit 1,500). No links, phone
+numbers, emails, @handles or hashtags: `check` rejects them, and the button
+carries the link. Plain text only, no markdown.
 
 ## Read the insight first
 
