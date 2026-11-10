@@ -12,7 +12,8 @@ an illustration, after a person approves it.
 The flow:
   1. `prepare` reads the site's sitemap (GBP_SITEMAP_URL), finds the oldest
      insight dated on or after GBP_POST_SINCE that has no post yet, and writes
-     posts/<date>-<slug>.md with the insight's own title and description.
+     posts/<date>-<slug>.md: the insight's title and description, then its
+     opening paragraphs up to about 1,300 characters (the profile allows 1,500).
   2. The routine reads the insight, writes an image_prompt from its content,
      and runs `image`, which makes posts/images/<slug>.jpg with the OpenAI API.
   3. The routine opens a draft pull request. Merging it is the approval.
@@ -37,7 +38,11 @@ A post file:
     ---
     The insight's title.
 
-    The insight's description.
+    The insight's description, then its opening paragraphs.
+
+Add `replace: 'true'` to the frontmatter to swap a post already on the profile
+for this one: `publish` deletes the old post for the same insight just before
+posting the new text.
 
 Failure protocol: any failed step posts {"event":"run_failed"} to
 POWERAUTOMATE_WEBHOOK_URL and exits non-zero.
@@ -163,6 +168,51 @@ def meta(page: str, key: str) -> str:
     return ""
 
 
+SUMMARY_TARGET = 1300  # characters of post text to aim for; the hard cap is MAX_CHARS
+
+
+def article_paragraphs(page: str) -> list[str]:
+    """The article's own paragraphs, in order, as plain text. Headings, lists and
+    the source card are left out: the summary reads as prose."""
+    start = page.find('class="Markdown_prose')
+    if start < 0:
+        return []
+    body = page[start:]
+    end = body.find("</article>")
+    body = body[:end] if end > 0 else body
+    out = []
+    for m in re.finditer(r"<p>(.*?)</p>", body, re.S):
+        text = html.unescape(re.sub(r"<[^>]+>", "", m.group(1)))
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def build_text(title: str, description: str, paragraphs: list[str]) -> str:
+    """Title, the description, then as many of the article's opening paragraphs as
+    fit in SUMMARY_TARGET characters. A paragraph is never cut mid-sentence, and
+    one that would not pass `check` (a link, a phone-like number...) is skipped."""
+    text = f"{title}\n\n{description}"
+    for para in paragraphs:
+        if para == description or any(p.search(para) for p, _ in BANNED):
+            continue
+        if len(text) + 2 + len(para) <= SUMMARY_TARGET:
+            text += "\n\n" + para
+            continue
+        # Fill the remaining room with whole sentences of this paragraph, then stop.
+        room = SUMMARY_TARGET - len(text) - 2
+        taken = ""
+        for sentence in re.findall(r"[^.!?]+[.!?]+(?:\s|$)", para):
+            if len(taken) + len(sentence.strip()) + 1 > room:
+                break
+            taken += sentence.strip() + " "
+        if taken.strip():
+            text += "\n\n" + taken.strip()
+        break
+    return text
+
+
 def site_insights(since: str) -> list[dict]:
     """Insights listed in the sitemap under PATH_PREFIX, read from the live site,
     oldest first. A page that does not answer 200 or carries no publish date is
@@ -196,7 +246,7 @@ def site_insights(since: str) -> list[dict]:
         # og:title usually ends " | Site name"; the post needs the article's own title.
         title = title.rsplit(" | ", 1)[0] if " | " in title else title
         found.append({"slug": path.rstrip("/").rsplit("/", 1)[-1], "url": url, "date": date,
-                      "title": title,
+                      "title": title, "paragraphs": article_paragraphs(page.text),
                       "description": meta(page.text, "og:description")
                       or meta(page.text, "description")})
     return sorted(found, key=lambda p: (p["date"], p["slug"]))
@@ -358,7 +408,7 @@ def cmd_prepare(args) -> None:
         write_post(path, {"publish_on": today, "cta_url": insight["url"],
                           "article_date": insight["date"], "image": f"{insight['slug']}.jpg",
                           "image_prompt": ""},
-                   f"{insight['title']}\n\n{insight['description']}")
+                   build_text(insight["title"], insight["description"], insight["paragraphs"]))
         print(f"PREPARED {path.relative_to(ROOT)}  (branch: post/{insight['slug']})")
         made += 1
     if made == 0:
@@ -425,13 +475,23 @@ def cmd_publish(args) -> None:
         url, headers, done = "", {}, set()
     else:
         url, headers = api()
-        done = posted_links(existing_posts(url, headers))
+        live = existing_posts(url, headers)
+        done = posted_links(live)
 
     made = 0
     for post in due:
         if made >= args.limit:
             break
-        if post.get("cta_url", "").rstrip("/") in done:
+        cta = post.get("cta_url", "").rstrip("/")
+        # `replace: 'true'` in the frontmatter swaps a live post for this one: the
+        # old post(s) linking to the same insight are deleted just before the new
+        # one goes up, and only while their text differs, so it happens once.
+        old = []
+        if post.get("replace") == "true" and url:
+            old = [lp for lp in live
+                   if (lp.get("callToAction") or {}).get("url", "").rstrip("/") == cta
+                   and lp.get("summary", "").strip() != post["text"].strip()]
+        if cta in done and not old:
             continue
         name = post["path"].name
         # Checked only now, so an old post whose link has since died does not
@@ -448,9 +508,17 @@ def cmd_publish(args) -> None:
                 "callToAction": {"actionType": "LEARN_MORE", "url": post["cta_url"]},
                 "media": [{"mediaFormat": "PHOTO", "sourceUrl": photo}]}
         if args.dry_run:
+            if old:
+                print(f"  would first delete {len(old)} old post(s) for {cta}")
             print(f"  would post {name}: {body}")
             made += 1
             continue
+        for lp in old:
+            d = requests.delete("https://mybusiness.googleapis.com/v4/" + lp["name"],
+                                headers=headers, timeout=60)
+            if d.status_code != 200:
+                fail(f"Deleting the old post {lp['name']} failed ({d.status_code}): {d.text[:300]}")
+            print(f"  deleted the old post {lp['name']}")
         r = requests.post(url, headers=headers, json=body, timeout=60)
         if r.status_code != 200:
             fail(f"Posting {name} to the Business Profile failed ({r.status_code}): {r.text[:300]}")

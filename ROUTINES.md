@@ -3,8 +3,8 @@
 One daily routine does both halves of the job:
 
 1. **Publish** any approved post that is not on the profile yet (one per run).
-2. **Prepare** the next new rothian.com insight: copy its title and
-   description, generate an image, and open a draft pull request for review.
+2. **Prepare** the next new rothian.com insight: copy its title,
+   description and opening paragraphs (about 1,300 characters), generate an image, and open a draft pull request for review.
 
 Merging the pull request is the approval. It also puts the image on `main`,
 which is where Google fetches it from, so a post can only go out after a person
