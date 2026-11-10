@@ -109,8 +109,8 @@ PREPARE
 4. Read .claude/skills/gbp-insight-image/SKILL.md and follow it: read the
    insight, write image_prompt into the post file, run
    `python3 gbp_post.py image <file>`, and look at the image before going on.
-   Do not change the post's text: it is the insight's own title and
-   description.
+   Then extend the post's text into a short summary as the skill says; keep
+   the insight's own title and description as its first two lines.
 5. Run `python3 gbp_post.py check <file>`; it must pass.
 6. Create the branch it named (post/<slug>), commit the post file and its image
    with `git -c commit.gpgsign=false commit`, and push. Open a DRAFT pull
