@@ -104,7 +104,7 @@ SUMMARY_PLACEHOLDER = "[SUMMARY: two or three sentences on what the insight says
 # The button Google shows for actionType LEARN_MORE; the CTA points at it.
 BUTTON_LABEL = "Learn more"
 CTA_TEXT = os.environ.get(
-    "GBP_CTA_TEXT", f"Read the full insight on our website: tap {BUTTON_LABEL}.").strip()
+    "GBP_CTA_TEXT", f"Read the full insight on our website, using the {BUTTON_LABEL} button below.").strip()
 # Google's minimum for a photo it hosts.
 MIN_IMAGE_BYTES = 10240
 
