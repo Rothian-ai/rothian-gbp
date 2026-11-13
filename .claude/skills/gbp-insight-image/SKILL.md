@@ -13,7 +13,7 @@ caption to fill in:
 
     [SUMMARY: ...]
 
-    Read the full insight on our website: tap Learn more.
+    Read the full insight on our website, using the Learn more button below.
 
 You replace the two placeholders and write the image prompt. `check` fails
 while a placeholder is left.
@@ -39,8 +39,12 @@ and description, then sharpen them.
    happened and why it matters to the reader's business, based on the insight's
    title and description. Plain and specific, with facts only from the insight.
 3. **Call to action** (one line). Keep the default, or make it more specific
-   to what the article offers ("Read the six steps we would take: tap Learn
-   more."). It must mention the **Learn more** button, which carries the link.
+   to what the article offers ("Read the six steps we would take in the full
+   insight, using the Learn more button below."). It must mention the **Learn
+   more** button, which carries the link. The caption is plain text and the
+   button sits underneath it, so point the reader down to the button ("below")
+   rather than writing "tap Learn more", which reads like a link that does
+   nothing.
 
 Rules:
 
