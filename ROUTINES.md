@@ -3,8 +3,10 @@
 One daily routine does both halves of the job:
 
 1. **Publish** any approved post that is not on the profile yet (one per run).
-2. **Prepare** the next new rothian.com insight: copy its title and
-   description, generate an image, and open a draft pull request for review.
+2. **Prepare** the next new rothian.com insight: write a caption (a hook, a
+   short summary from its title and description, and a call to action),
+   generate an image in Rothian's house style, and open a draft pull request
+   for review.
 
 Merging the pull request is the approval. It also puts the image on `main`,
 which is where Google fetches it from, so a post can only go out after a person
@@ -107,15 +109,17 @@ PREPARE
    If it prints "nothing new to prepare", skip to the end.
    Otherwise it prints PREPARED <file> and the branch name to use.
 4. Read .claude/skills/gbp-insight-image/SKILL.md and follow it: read the
-   insight, write image_prompt into the post file, run
-   `python3 gbp_post.py image <file>`, and look at the image before going on.
-   Do not change the post's text: it is the insight's own title and
-   description.
+   insight, replace the [HOOK] and [SUMMARY] placeholders in the post's text
+   with a hook and a short summary drawn from the insight's title and
+   description, keep the call to action as the last paragraph, write
+   image_prompt into the post file, run `python3 gbp_post.py image <file>`,
+   and look at the image before going on.
 5. Run `python3 gbp_post.py check <file>`; it must pass.
 6. Create the branch it named (post/<slug>), commit the post file and its image
    with `git -c commit.gpgsign=false commit`, and push. Open a DRAFT pull
    request against main with the GitHub MCP tools: title "GBP: <insight
-   title>", body with the post text, the insight URL and the image prompt.
+   title>", body with the post text, the insight's own title and description,
+   the insight URL and the image prompt.
 7. Run `python3 gbp_post.py notify-pr <PR URL> <file>`.
 
 If a PREPARE step fails, do not open a half-finished pull request: post
