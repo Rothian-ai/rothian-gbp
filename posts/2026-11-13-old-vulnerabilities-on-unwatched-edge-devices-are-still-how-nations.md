@@ -11,4 +11,4 @@ The way into your network may be a server nobody has patched since 2014.
 
 Ten national agencies, including the UK's NCSC, report that China-linked actors broke in through eight known vulnerabilities, the oldest from 2014, on edge devices nobody watched closely. They then sprayed passwords against Microsoft 365 and pulled email continuously. The lesson is hygiene, not novelty: know what you expose, patch or retire it, and protect the mailboxes behind it.
 
-Read the six steps we would take: tap Learn more.
+Read the six steps we would take in the full insight, using the Learn more button below.
