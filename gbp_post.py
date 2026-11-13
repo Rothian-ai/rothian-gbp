@@ -12,9 +12,12 @@ an illustration, after a person approves it.
 The flow:
   1. `prepare` reads the site's sitemap (GBP_SITEMAP_URL), finds the oldest
      insight dated on or after GBP_POST_SINCE that has no post yet, and writes
-     posts/<date>-<slug>.md with the insight's own title and description.
-  2. The routine reads the insight, writes an image_prompt from its content,
-     and runs `image`, which makes posts/images/<slug>.jpg with the OpenAI API.
+     posts/<date>-<slug>.md: the insight's title and description in the
+     frontmatter, and a caption to fill in (hook, summary, call to action).
+  2. The routine reads the insight, writes the hook and summary, writes an
+     image_prompt (the subject only), and runs `image`, which adds Rothian's
+     fixed visual style (brand/image-style.txt) and makes
+     posts/images/<slug>.jpg with the OpenAI API.
   3. The routine opens a draft pull request. Merging it is the approval.
   4. `publish` posts merged posts. Google takes a post's image only as a public
      URL (sourceUrl), so the image is served from main at GBP_IMAGE_BASE_URL:
@@ -34,10 +37,14 @@ A post file:
     article_date: '2026-11-03'
     image: <slug>.jpg
     image_prompt: '...'
+    insight_title: '...'
+    insight_description: '...'
     ---
-    The insight's title.
+    A one-line hook.
 
-    The insight's description.
+    A short summary of the insight.
+
+    A call to action pointing at the Learn more button.
 
 Failure protocol: any failed step posts {"event":"run_failed"} to
 POWERAUTOMATE_WEBHOOK_URL and exits non-zero.
@@ -61,6 +68,8 @@ import requests
 ROOT = Path(__file__).resolve().parent
 POSTS_DIR = ROOT / "posts"
 IMAGES_DIR = POSTS_DIR / "images"
+# Appended to every image_prompt, so every post has the same brand look.
+STYLE_FILE = ROOT / "brand" / "image-style.txt"
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 POSTS_API = "https://mybusiness.googleapis.com/v4/accounts/{account}/locations/{location}/localPosts"
@@ -86,6 +95,16 @@ IMAGE_SIZE = os.environ.get("OPENAI_IMAGE_SIZE", "1536x1024").strip() or "1536x1
 # Business Profile posts carry at most 1,500 characters of text.
 MAX_CHARS = 1500
 MIN_CHARS = 80
+# The hook is the first paragraph: Google shows only the first lines of a post
+# before "More", so it has to be short.
+MAX_HOOK_CHARS = 150
+# The caption's placeholders, written by `prepare` and filled in by the routine.
+HOOK_PLACEHOLDER = "[HOOK: one line that makes a buyer stop]"
+SUMMARY_PLACEHOLDER = "[SUMMARY: two or three sentences on what the insight says]"
+# The button Google shows for actionType LEARN_MORE; the CTA points at it.
+BUTTON_LABEL = "Learn more"
+CTA_TEXT = os.environ.get(
+    "GBP_CTA_TEXT", f"Read the full insight on our website: tap {BUTTON_LABEL}.").strip()
 # Google's minimum for a photo it hosts.
 MIN_IMAGE_BYTES = 10240
 
@@ -252,6 +271,21 @@ def problems(post: dict, online: bool = True) -> list[str]:
         errors.append("publish_on must be a YYYY-MM-DD date")
     if not (MIN_CHARS <= len(text) <= MAX_CHARS):
         errors.append(f"the text is {len(text)} characters; it must be {MIN_CHARS} to {MAX_CHARS}")
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if re.search(r"\[(HOOK|SUMMARY)\b", text):
+        errors.append("the caption still has a [HOOK] or [SUMMARY] placeholder")
+    elif len(paragraphs) < 3:
+        errors.append("the caption needs a hook, a summary and a call to action, "
+                      "as separate paragraphs")
+    else:
+        if len(paragraphs[0]) > MAX_HOOK_CHARS:
+            errors.append(f"the hook (first paragraph) is {len(paragraphs[0])} characters; "
+                          f"keep it to {MAX_HOOK_CHARS}")
+        if BUTTON_LABEL.lower() not in paragraphs[-1].lower():
+            errors.append(f"the last paragraph should be the call to action and mention "
+                          f"the {BUTTON_LABEL!r} button")
+    if "\u2026" in text or "..." in text:
+        errors.append("the text contains an ellipsis: is it a cut-off description?")
     for pattern, what in BANNED:
         hit = pattern.search(text)
         if hit:
@@ -357,8 +391,9 @@ def cmd_prepare(args) -> None:
         path = POSTS_DIR / f"{today}-{insight['slug']}.md"
         write_post(path, {"publish_on": today, "cta_url": insight["url"],
                           "article_date": insight["date"], "image": f"{insight['slug']}.jpg",
-                          "image_prompt": ""},
-                   f"{insight['title']}\n\n{insight['description']}")
+                          "image_prompt": "", "insight_title": insight["title"],
+                          "insight_description": insight["description"]},
+                   f"{HOOK_PLACEHOLDER}\n\n{SUMMARY_PLACEHOLDER}\n\n{CTA_TEXT}")
         print(f"PREPARED {path.relative_to(ROOT)}  (branch: post/{insight['slug']})")
         made += 1
     if made == 0:
@@ -373,6 +408,11 @@ def cmd_image(args) -> None:
         fail(f"{path.name} has no image_prompt; write one from the insight first")
     if not post.get("image"):
         fail(f"{path.name} has no image filename")
+    if STYLE_FILE.is_file():
+        prompt = f"{prompt}\n\n{STYLE_FILE.read_text(encoding='utf-8').strip()}"
+    else:
+        print(f"  warning: {STYLE_FILE.relative_to(ROOT)} is missing; no brand style applied",
+              file=sys.stderr)
     r = requests.post(OPENAI_API, timeout=300,
                       headers={"Authorization": f"Bearer {env('OPENAI_API_KEY')}"},
                       json={"model": IMAGE_MODEL, "prompt": prompt, "size": IMAGE_SIZE,
